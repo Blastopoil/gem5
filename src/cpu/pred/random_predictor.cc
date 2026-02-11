@@ -5,6 +5,7 @@
 #include "base/random.hh"
 #include "base/trace.hh"
 #include "debug/Fetch.hh"
+#include "debug/RandomBP.hh"
 
 namespace gem5
 {
@@ -32,7 +33,11 @@ bool
 RandomBP::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
 {
     bool pred = (rng->random<uint8_t>() & 1) != 0;
-    DPRINTF(Fetch, "Random prediction\n");
+    if (pred) {
+        DPRINTF(RandomBP, "Random prediction says TRUE\n");
+    } else {
+        DPRINTF(RandomBP, "Random prediction says FALSE\n");
+    }
     return pred;
 }
 

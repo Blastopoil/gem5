@@ -98,3 +98,6 @@ DebugFlag('Branch')
 DebugFlag('Tage')
 DebugFlag('LTage')
 DebugFlag('TageSCL')
+DebugFlag('RandomBP')
+DebugFlag('AlwaysFalseBP')
+

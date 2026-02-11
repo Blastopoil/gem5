@@ -3,7 +3,7 @@
 #include "base/intmath.hh"
 #include "base/logging.hh"
 #include "base/trace.hh"
-#include "debug/Fetch.hh"
+#include "debug/AlwaysFalseBP.hh"
 
 namespace gem5
 {
@@ -29,7 +29,7 @@ AlwaysFalseBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
 bool
 AlwaysFalseBP::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
 {
-    DPRINTF(Fetch, "prediction is False, as always.\n");
+    DPRINTF(AlwaysFalseBP, "prediction is False, as always.\n");
 
     return false;
 }
