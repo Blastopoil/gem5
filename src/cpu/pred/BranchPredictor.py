@@ -1175,3 +1175,8 @@ class AlwaysFalseBP(ConditionalPredictor):
     type = "AlwaysFalseBP"
     cxx_class = "gem5::branch_prediction::AlwaysFalseBP"
     cxx_header = "cpu/pred/always_false.hh"
+
+class RandomBP(ConditionalPredictor):
+    type = "RandomBP"
+    cxx_class = "gem5::branch_prediction::RandomBP"
+    cxx_header = "cpu/pred/random_predictor.hh"
