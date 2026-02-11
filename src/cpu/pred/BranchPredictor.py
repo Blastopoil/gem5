@@ -1170,3 +1170,8 @@ class GshareBP(BranchPredictor):
 
     global_predictor_size = Param.Unsigned(512, "Size of global predictor")
     global_counter_bits = Param.Unsigned(2, "Bits per counter")
+
+class AlwaysFalseBP(ConditionalPredictor):
+    type = "AlwaysFalseBP"
+    cxx_class = "gem5::branch_prediction::AlwaysFalseBP"
+    cxx_header = "cpu/pred/always_false.hh"
