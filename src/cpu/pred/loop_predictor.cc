@@ -57,6 +57,7 @@ namespace branch_prediction
 
 LoopPredictor::LoopPredictor(const LoopPredictorParams &p)
   : SimObject(p), logSizeLoopPred(p.logSizeLoopPred),
+    disable(p.disable),
     loopTableAgeBits(p.loopTableAgeBits),
     loopTableConfidenceBits(p.loopTableConfidenceBits),
     loopTableTagBits(p.loopTableTagBits),
@@ -293,7 +294,7 @@ LoopPredictor::loopPredict(ThreadID tid, Addr branch_pc, bool cond_branch,
         // loop prediction
         bi->loopPred = getLoop(branch_pc, bi, useSpeculation, instShiftAmt);
 
-        if ((loopUseCounter >= 0) && bi->loopPredValid) {
+        if ((loopUseCounter >= 0) && bi->loopPredValid && !disable) {
             pred_taken = bi->loopPred;
             bi->loopPredUsed = true;
         }

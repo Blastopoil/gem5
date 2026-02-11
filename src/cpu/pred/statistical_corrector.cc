@@ -53,6 +53,7 @@ namespace branch_prediction
 StatisticalCorrector::StatisticalCorrector(
     const StatisticalCorrectorParams &p)
   : SimObject(p),
+    disable(p.disable),
     logBias(p.logBias),
     logSizeUp(p.logSizeUp),
     logSizeUps(logSizeUp / 2),
@@ -286,7 +287,7 @@ StatisticalCorrector::scPredict(ThreadID tid, Addr branch_pc, bool cond_branch,
             }
 
             bi->usedScPred = useScPred;
-            if (useScPred) {
+            if (useScPred && !disable) {
                 pred_taken = scPred;
                 bi->scPred = scPred;
             }

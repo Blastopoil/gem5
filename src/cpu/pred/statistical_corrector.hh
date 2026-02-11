@@ -154,6 +154,8 @@ class StatisticalCorrector : public SimObject
     // rollback on miss-predictions
     SCThreadHistory * scHistory;
 
+    const bool disable;
+
     const unsigned logBias;
 
     const unsigned logSizeUp;

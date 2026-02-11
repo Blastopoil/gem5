@@ -94,6 +94,8 @@ class LoopPredictor : public SimObject
     int8_t loopUseCounter;
     unsigned withLoopBits;
 
+    const bool disable;
+
     const bool useDirectionBit;
     const bool useSpeculation;
     const bool useHashing;

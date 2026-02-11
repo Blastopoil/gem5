@@ -375,6 +375,8 @@ class LoopPredictor(SimObject):
     cxx_class = "gem5::branch_prediction::LoopPredictor"
     cxx_header = "cpu/pred/loop_predictor.hh"
 
+    disable = Param.Bool(False, "Disable loop predictor")
+
     logSizeLoopPred = Param.Unsigned(8, "Log size of the loop predictor")
     withLoopBits = Param.Unsigned(7, "Size of the WITHLOOP counter")
     loopTableAgeBits = Param.Unsigned(8, "Number of age bits per loop entry")
@@ -617,6 +619,8 @@ class StatisticalCorrector(SimObject):
     cxx_class = "gem5::branch_prediction::StatisticalCorrector"
     cxx_header = "cpu/pred/statistical_corrector.hh"
     abstract = True
+
+    disable = Param.Bool(False, "Disable statistical corrector")
 
     instShiftAmt = Param.Unsigned(
         Parent.instShiftAmt, "Number of bits to shift instructions by"
