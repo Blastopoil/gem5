@@ -1,12 +1,12 @@
-#ifndef __CPU_PRED_FALSE_PRED_HH__
-#define __CPU_PRED_FALSE_PRED_HH__
+#ifndef __CPU_PRED_BOOLEAN_PRED_HH__
+#define __CPU_PRED_BOOLEAN_PRED_HH__
 
 #include <vector>
 
 #include "base/sat_counter.hh"
 #include "base/types.hh"
 #include "cpu/pred/conditional.hh"
-#include "params/AlwaysFalseBP.hh"
+#include "params/AlwaysBooleanBP.hh"
 
 namespace gem5
 {
@@ -15,16 +15,16 @@ namespace branch_prediction
 {
 
 /**
- * A predictor that always predicts a branch as non taken.
- * TODO: Figure out wether this will happen for uncond branches.
+ * A predictor that always gives taken or not taken predictions depending on the parameter bool 
+ * alwaysTruePreds.
  */
-class AlwaysFalseBP : public ConditionalPredictor
+class AlwaysBooleanBP : public ConditionalPredictor
 {
   public:
     /**
      * Default branch predictor constructor.
      */
-    AlwaysFalseBP(const AlwaysFalseBPParams &params);
+    AlwaysBooleanBP(const AlwaysBooleanBPParams &params);
 
     // Overriding interface functions
     bool lookup(ThreadID tid, Addr pc, void * &bp_history) override;
@@ -42,9 +42,12 @@ class AlwaysFalseBP : public ConditionalPredictor
 
     void squash(ThreadID tid, void * &bp_history) override
     { assert(bp_history == NULL); }
+
+  private:
+    bool alwaysTruePreds;
 };
 
 } // namespace branch_prediction
 } // namespace gem5
 
-#endif // __CPU_PRED_FALSE_PRED_HH__
+#endif // __CPU_PRED_BOOLEAN_PRED_HH__

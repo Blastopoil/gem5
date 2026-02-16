@@ -60,7 +60,7 @@ SimObject('BranchPredictor.py',
     'MultiperspectivePerceptronTAGE64KB', 'MPP_TAGE_8KB',
     'MPP_LoopPredictor_8KB', 'MPP_StatisticalCorrector_8KB',
     'MultiperspectivePerceptronTAGE8KB', 'GshareBP', 
-    'AlwaysFalseBP', 'RandomBP'],
+    'AlwaysBooleanBP', 'RandomBP'],
     enums=['BranchType', 'TargetProvider'])
 
 Source('bpred_unit.cc')
@@ -88,7 +88,7 @@ Source('tage_sc_l_64KB.cc')
 Source('gshare.cc')
 Source('btb.cc')
 Source('simple_btb.cc')
-Source('always_false.cc')
+Source('always_boolean.cc')
 Source('random_predictor.cc')
 DebugFlag('Indirect')
 DebugFlag('BTB')
@@ -99,5 +99,5 @@ DebugFlag('Tage')
 DebugFlag('LTage')
 DebugFlag('TageSCL')
 DebugFlag('RandomBP')
-DebugFlag('AlwaysFalseBP')
+DebugFlag('AlwaysBooleanBP')
 
