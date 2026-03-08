@@ -293,6 +293,7 @@ StatisticalCorrector::scPredict(ThreadID tid, Addr branch_pc, bool cond_branch,
             }
         }
     }
+    assert(pred_taken == prev_pred_taken);
 
     return pred_taken;
 }
