@@ -31,10 +31,11 @@
  * Implementation of a bi-mode branch predictor
  */
 
-#include "cpu/pred/gshare.hh"
+#include "cpu/pred/gshare_replicated_bhr.hh"
 
 #include "base/bitfield.hh"
 #include "base/intmath.hh"
+#include "mem/cache/base.hh"
 
 namespace gem5
 {
@@ -42,19 +43,23 @@ namespace gem5
 namespace branch_prediction
 {
 
-GshareBP::GshareBP(const GshareBPParams &params)
+GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
     : ConditionalPredictor(params),
       globalHistoryReg(params.numThreads, 0),
+      globalHistoryReg2(params.numThreads, 0),
       globalHistoryBits(ceilLog2(params.global_predictor_size)),
       globalPredictorSize(params.global_predictor_size),
       globalCtrBits(params.global_counter_bits),
-      globalCtrs(globalPredictorSize, SatCounter8(globalCtrBits))
+      globalCtrs(globalPredictorSize, SatCounter8(globalCtrBits)),
+      icacheBlockShift(params.icache_block_shift),
+      numIcacheSets(params.num_icache_sets)
 {
 
     if (!isPowerOf2(globalPredictorSize)) {
         fatal("Invalid global history predictor size.\n");
     }
     historyRegisterMask = mask(globalHistoryBits);
+    icacheSetMask = ceilLog2(numIcacheSets) - 1;
     globalHistoryMask = globalPredictorSize - 1;
     takenThreshold = (1ULL << (globalCtrBits - 1)) - 1;
 }
@@ -65,7 +70,7 @@ GshareBP::GshareBP(const GshareBPParams &params)
  * chooses the taken array and the taken array predicts taken.
  */
 void
-GshareBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
+GshareReplicatedBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 {
     BPHistory *history = new BPHistory;
     history->globalHistoryReg = globalHistoryReg[tid];
@@ -74,7 +79,7 @@ GshareBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 }
 
 void
-GshareBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
+GshareReplicatedBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
                           Addr target, const StaticInstPtr &inst,
                           void *&bp_history)
 {
@@ -82,18 +87,18 @@ GshareBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
     if (uncond) {
         uncondBranch(tid, pc, bp_history);
     }
-    updateGlobalHistReg(tid, taken);
+    updateGlobalHistReg(tid, pc, taken);
 }
 
 void 
-GshareBP::branchPlaceholder(ThreadID tid, Addr pc,
+GshareReplicatedBP::branchPlaceholder(ThreadID tid, Addr pc,
                                 bool uncond, void * &bpHistory)
 {
 // Placeholder for a function that only returns history items
 }
 
 void
-GshareBP::squash(ThreadID tid, void *&bp_history)
+GshareReplicatedBP::squash(ThreadID tid, void *&bp_history)
 {
     BPHistory *history = static_cast<BPHistory *>(bp_history);
     globalHistoryReg[tid] = history->globalHistoryReg;
@@ -108,10 +113,16 @@ GshareBP::squash(ThreadID tid, void *&bp_history)
  * index into the counter, which both present a prediction.
  */
 bool
-GshareBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
+GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
 {
+    uint32_t icache_set = getIcacheSet(branchAddr);
+    bool oddSet = (icache_set & 1U) != 0;
+
+    unsigned selectedGhr = oddSet ? globalHistoryReg2[tid]
+                                  : globalHistoryReg[tid];
+
     unsigned globalHistoryIdx =
-        (((branchAddr >> instShiftAmt) ^ globalHistoryReg[tid]) &
+        (((branchAddr >> instShiftAmt) ^ selectedGhr) &
          globalHistoryMask);
 
     assert(globalHistoryIdx < globalPredictorSize);
@@ -119,7 +130,7 @@ GshareBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
     bool final_prediction = globalCtrs[globalHistoryIdx] > takenThreshold;
 
     BPHistory *history = new BPHistory;
-    history->globalHistoryReg = globalHistoryReg[tid];
+    history->globalHistoryReg = selectedGhr;
     history->finalPred = final_prediction;
     bp_history = static_cast<void *>(history);
 
@@ -130,9 +141,13 @@ GshareBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
  * direction.
  */
 void
-GshareBP::update(ThreadID tid, Addr branchAddr, bool taken, void *&bp_history,
-                 bool squashed, const StaticInstPtr &inst, Addr target)
+GshareReplicatedBP::update(ThreadID tid, Addr branchAddr, bool taken,
+                 void *&bp_history, bool squashed,
+                 const StaticInstPtr &inst, Addr target)
 {
+    uint32_t icache_set = getIcacheSet(branchAddr);
+    bool oddSet = (icache_set & 1U) != 0;
+
     assert(bp_history);
 
     BPHistory *history = static_cast<BPHistory *>(bp_history);
@@ -140,7 +155,10 @@ GshareBP::update(ThreadID tid, Addr branchAddr, bool taken, void *&bp_history,
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     if (squashed) {
-        globalHistoryReg[tid] = (history->globalHistoryReg << 1) | taken;
+        if (oddSet)
+            globalHistoryReg2[tid] = (history->globalHistoryReg << 1) | taken;
+        else
+            globalHistoryReg[tid] = (history->globalHistoryReg << 1) | taken;
         return;
     }
 
@@ -160,11 +178,29 @@ GshareBP::update(ThreadID tid, Addr branchAddr, bool taken, void *&bp_history,
 }
 
 void
-GshareBP::updateGlobalHistReg(ThreadID tid, bool taken)
+GshareReplicatedBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool taken)
 {
-    globalHistoryReg[tid] = taken ? (globalHistoryReg[tid] << 1) | 1
-                                  : (globalHistoryReg[tid] << 1);
-    globalHistoryReg[tid] &= historyRegisterMask;
+    uint32_t icache_set = getIcacheSet(branchAddr);
+    bool oddSet = (icache_set & 1U) != 0;
+
+    if (oddSet) {
+        unsigned selectedGhr = taken ? (globalHistoryReg2[tid] << 1) | 1
+                                     : (globalHistoryReg2[tid] << 1);
+        selectedGhr &= historyRegisterMask;
+        globalHistoryReg2[tid] = selectedGhr;
+    }
+    else {
+        unsigned selectedGhr = taken ? (globalHistoryReg[tid] << 1) | 1
+                                     : (globalHistoryReg[tid] << 1);
+        selectedGhr &= historyRegisterMask;
+        globalHistoryReg[tid] = selectedGhr;
+    }
+}
+
+uint32_t
+GshareReplicatedBP::getIcacheSet(Addr addr) const
+{
+    return (addr >> icacheBlockShift) & icacheSetMask;
 }
 
 } // namespace branch_prediction

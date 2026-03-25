@@ -31,12 +31,12 @@
  * Implementation of a gshare branch predictor
  */
 
-#ifndef __CPU_PRED_GSHARE_PRED_HH__
-#define __CPU_PRED_GSHARE_PRED_HH__
+#ifndef __CPU_PRED_GSHARE_REPLICATED_BHR_HH__
+#define __CPU_PRED_GSHARE_REPLICATED_BHR_HH__
 
 #include "base/sat_counter.hh"
 #include "cpu/pred/conditional.hh"
-#include "params/GshareBP.hh"
+#include "params/GshareReplicatedBP.hh"
 
 namespace gem5
 {
@@ -52,10 +52,10 @@ namespace branch_prediction
  * taken and not taken counters.
  */
 
-class GshareBP : public ConditionalPredictor
+class GshareReplicatedBP : public ConditionalPredictor
 {
   public:
-    GshareBP(const GshareBPParams &params);
+    GshareReplicatedBP(const GshareReplicatedBPParams &params);
     bool lookup(ThreadID tid, Addr pc, void *&bp_history);
     void updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
                          Addr target, const StaticInstPtr &inst,
@@ -63,12 +63,12 @@ class GshareBP : public ConditionalPredictor
     void squash(ThreadID tid, void *&bp_history);
     void update(ThreadID tid, Addr pc, bool taken, void *&bp_history,
                 bool squashed, const StaticInstPtr &inst, Addr target);
-    
+ 
     void branchPlaceholder(ThreadID tid, Addr pc, bool uncond,
                            void * &bpHistory) override;
 
   private:
-    void updateGlobalHistReg(ThreadID tid, bool taken);
+    void updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool taken);
     void uncondBranch(ThreadID tid, Addr pc, void *&bp_history);
 
     struct BPHistory
@@ -78,6 +78,7 @@ class GshareBP : public ConditionalPredictor
     };
 
     std::vector<unsigned> globalHistoryReg;
+    std::vector<unsigned> globalHistoryReg2;
     unsigned globalHistoryBits;
     unsigned historyRegisterMask;
 
@@ -87,8 +88,14 @@ class GshareBP : public ConditionalPredictor
 
     std::vector<SatCounter8> globalCtrs;
     unsigned takenThreshold;
+
+    unsigned icacheBlockShift;
+    unsigned numIcacheSets;
+    uint32_t icacheSetMask;
+
+    uint32_t getIcacheSet(Addr addr) const;
 };
 
 } // namespace branch_prediction
 } // namespace gem5
-#endif // __CPU_PRED_GSHARE_PRED_HH__
+#endif // __CPU_PRED_GSHARE_REPLICATED_BHR_HH__

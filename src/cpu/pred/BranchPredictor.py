@@ -1163,13 +1163,27 @@ class MultiperspectivePerceptronTAGE8KB(MultiperspectivePerceptronTAGE):
     statistical_corrector = MPP_StatisticalCorrector_8KB()
 
 
-class GshareBP(BranchPredictor):
+class GshareBP(ConditionalPredictor):
     type = "GshareBP"
     cxx_class = "gem5::branch_prediction::GshareBP"
     cxx_header = "cpu/pred/gshare.hh"
 
     global_predictor_size = Param.Unsigned(512, "Size of global predictor")
     global_counter_bits = Param.Unsigned(2, "Bits per counter")
+
+class GshareReplicatedBP(ConditionalPredictor):
+    type = "GshareReplicatedBP"
+    cxx_class = "gem5::branch_prediction::GshareReplicatedBP"
+    cxx_header = "cpu/pred/gshare_replicated_bhr.hh"
+
+    global_predictor_size = Param.Unsigned(512, "Size of global predictor")
+    global_counter_bits = Param.Unsigned(2, "Bits per counter")
+
+    icache_block_shift = Param.Unsigned(6, "The number of bits used for the cache line tag in the instruction address") # Comes from log2(cache block size in Bytes) = log2(64)
+    num_icache_sets = Param.Unsigned(128, "Number of sets") # 32*1024/(4*64)
+    #lines_per_block_icache = Param.Unsigned(4, "Number of sets") # the associativity in the L1I
+
+    # This for SmallO3, for BigO3 it is 16640 and 4
 
 class AlwaysBooleanBP(ConditionalPredictor):
     type = "AlwaysBooleanBP"
