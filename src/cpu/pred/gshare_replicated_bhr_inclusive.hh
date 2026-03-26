@@ -31,13 +31,13 @@
  * Implementation of a gshare branch predictor
  */
 
-#ifndef __CPU_PRED_GSHARE_REPLICATED_BHR_HH__
-#define __CPU_PRED_GSHARE_REPLICATED_BHR_HH__
+#ifndef __CPU_PRED_GSHARE_REPLICATED_BHR_INCLUSIVE_HH__
+#define __CPU_PRED_GSHARE_REPLICATED_BHR_INCLUSIVE_HH__
 
 #include "base/sat_counter.hh"
 #include "base/statistics.hh"
 #include "cpu/pred/conditional.hh"
-#include "params/GshareReplicatedBP.hh"
+#include "params/GshareReplicatedInclusiveBP.hh"
 
 namespace gem5
 {
@@ -53,10 +53,10 @@ namespace branch_prediction
  * taken and not taken counters.
  */
 
-class GshareReplicatedBP : public ConditionalPredictor
+class GshareReplicatedInclusiveBP : public ConditionalPredictor
 {
   public:
-    GshareReplicatedBP(const GshareReplicatedBPParams &params);
+    GshareReplicatedInclusiveBP(const GshareReplicatedInclusiveBPParams &params);
     bool lookup(ThreadID tid, Addr pc, void *&bp_history);
     void updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
                          Addr target, const StaticInstPtr &inst,
@@ -75,12 +75,13 @@ class GshareReplicatedBP : public ConditionalPredictor
     struct BPHistory
     {
         unsigned globalHistoryReg;
+        unsigned globalHistoryRegInclusive; // So that a squash doesn't wreck the inclusive history
         bool finalPred;
         bool oddSet; // To decide what history reg to use in a squash
     };
 
-    std::vector<unsigned> globalHistoryReg;
-    std::vector<unsigned> globalHistoryReg2;
+    std::vector<unsigned> globalHistoryRegExclusive;
+    std::vector<unsigned> globalHistoryRegInclusive;
     unsigned globalHistoryBits;
     unsigned historyRegisterMask;
 
@@ -95,16 +96,16 @@ class GshareReplicatedBP : public ConditionalPredictor
 
     uint32_t getIcacheSet(Addr addr) const;
 
-    struct GshareReplicatedBPStats : public statistics::Group
+    struct GshareReplicatedInclusiveBPStats : public statistics::Group
     {
-        GshareReplicatedBPStats(statistics::Group *parent);
-        statistics::Scalar lookupUsedGhr1;
-        statistics::Scalar lookupUsedGhr2;
-        statistics::Scalar updateUsedGhr1;
-        statistics::Scalar updateUsedGhr2;
+        GshareReplicatedInclusiveBPStats(statistics::Group *parent);
+        statistics::Scalar lookupUsedGhrExclusive;
+        statistics::Scalar lookupUsedGhrInclusive;
+        statistics::Scalar updateUsedGhrExclusive;
+        statistics::Scalar updateUsedGhrInclusive;
     } stats;
 };
 
 } // namespace branch_prediction
 } // namespace gem5
-#endif // __CPU_PRED_GSHARE_REPLICATED_BHR_HH__
+#endif // __CPU_PRED_GSHARE_REPLICATED_BHR_INCLUSIVE_HH__

@@ -31,7 +31,7 @@
  * Implementation of a bi-mode branch predictor
  */
 
-#include "cpu/pred/gshare_replicated_bhr.hh"
+#include "cpu/pred/gshare_replicated_bhr_inclusive.hh"
 
 #include "base/bitfield.hh"
 #include "base/intmath.hh"
@@ -43,10 +43,10 @@ namespace gem5
 namespace branch_prediction
 {
 
-GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
+GshareReplicatedInclusiveBP::GshareReplicatedInclusiveBP(const GshareReplicatedInclusiveBPParams &params)
     : ConditionalPredictor(params),
-      globalHistoryReg(params.numThreads, 0),
-      globalHistoryReg2(params.numThreads, 0),
+      globalHistoryRegExclusive(params.numThreads, 0),
+      globalHistoryRegInclusive(params.numThreads, 0),
       globalHistoryBits(ceilLog2(params.global_predictor_size)),
       globalPredictorSize(params.global_predictor_size),
       globalCtrBits(params.global_counter_bits),
@@ -69,21 +69,20 @@ GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
  * chooses the taken array and the taken array predicts taken.
  */
 void
-GshareReplicatedBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
+GshareReplicatedInclusiveBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 {
     uint32_t icache_set = getIcacheSet(pc);
     bool oddSet = (icache_set & 1U) != 0;
 
     BPHistory *history = new BPHistory;
-    history->globalHistoryReg = oddSet ? globalHistoryReg2[tid]
-                                       : globalHistoryReg[tid];
+    history->globalHistoryReg = oddSet ? globalHistoryRegInclusive[tid]
+                                       : globalHistoryRegExclusive[tid];
     history->finalPred = true;
-    history->oddSet = oddSet;
     bp_history = static_cast<void *>(history);
 }
 
 void
-GshareReplicatedBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
+GshareReplicatedInclusiveBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
                           Addr target, const StaticInstPtr &inst,
                           void *&bp_history)
 {
@@ -95,20 +94,22 @@ GshareReplicatedBP::updateHistories(ThreadID tid, Addr pc, bool uncond, bool tak
 }
 
 void 
-GshareReplicatedBP::branchPlaceholder(ThreadID tid, Addr pc,
+GshareReplicatedInclusiveBP::branchPlaceholder(ThreadID tid, Addr pc,
                                 bool uncond, void * &bpHistory)
 {
 // Placeholder for a function that only returns history items
 }
 
 void
-GshareReplicatedBP::squash(ThreadID tid, void *&bp_history)
+GshareReplicatedInclusiveBP::squash(ThreadID tid, void *&bp_history)
 {
     BPHistory *history = static_cast<BPHistory *>(bp_history);
     if (history->oddSet)
-        globalHistoryReg2[tid] = history->globalHistoryReg;
-    else
-        globalHistoryReg[tid] = history->globalHistoryReg;
+        globalHistoryRegInclusive[tid] = history->globalHistoryReg;
+    else {
+        globalHistoryRegExclusive[tid] = history->globalHistoryReg;
+        globalHistoryRegInclusive[tid] = history->globalHistoryRegInclusive;
+    }
 
     delete history;
     bp_history = nullptr;
@@ -120,18 +121,18 @@ GshareReplicatedBP::squash(ThreadID tid, void *&bp_history)
  * index into the counter, which both present a prediction.
  */
 bool
-GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
+GshareReplicatedInclusiveBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
 {
     uint32_t icache_set = getIcacheSet(branchAddr);
     bool oddSet = (icache_set & 1U) != 0;
 
     unsigned selectedGhr;
     if (oddSet) {
-        selectedGhr = globalHistoryReg2[tid];
-        stats.lookupUsedGhr2++;
+        selectedGhr = globalHistoryRegInclusive[tid];
+        stats.lookupUsedGhrInclusive++;
     } else {
-        selectedGhr = globalHistoryReg[tid];
-        stats.lookupUsedGhr1++;
+        selectedGhr = globalHistoryRegExclusive[tid];
+        stats.lookupUsedGhrExclusive++;
     }
 
     unsigned globalHistoryIdx =
@@ -144,6 +145,7 @@ GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
 
     BPHistory *history = new BPHistory;
     history->globalHistoryReg = selectedGhr;
+    history->globalHistoryRegInclusive = globalHistoryRegInclusive[tid];
     history->finalPred = final_prediction;
     bp_history = static_cast<void *>(history);
 
@@ -154,7 +156,7 @@ GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
  * direction.
  */
 void
-GshareReplicatedBP::update(ThreadID tid, Addr branchAddr, bool taken,
+GshareReplicatedInclusiveBP::update(ThreadID tid, Addr branchAddr, bool taken,
                  void *&bp_history, bool squashed,
                  const StaticInstPtr &inst, Addr target)
 {
@@ -168,10 +170,13 @@ GshareReplicatedBP::update(ThreadID tid, Addr branchAddr, bool taken,
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     if (squashed) {
-        if (oddSet)
-            globalHistoryReg2[tid] = (history->globalHistoryReg << 1) | taken;
-        else
-            globalHistoryReg[tid] = (history->globalHistoryReg << 1) | taken;
+        if (oddSet) {
+            globalHistoryRegInclusive[tid] = (history->globalHistoryReg << 1) | taken;
+        }
+        else {
+            globalHistoryRegExclusive[tid] = (history->globalHistoryReg << 1) | taken;
+            globalHistoryRegInclusive[tid] = (history->globalHistoryRegInclusive << 1) | taken;
+        }
         return;
     }
 
@@ -191,43 +196,49 @@ GshareReplicatedBP::update(ThreadID tid, Addr branchAddr, bool taken,
 }
 
 void
-GshareReplicatedBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool taken)
+GshareReplicatedInclusiveBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool taken)
 {
     uint32_t icache_set = getIcacheSet(branchAddr);
     bool oddSet = (icache_set & 1U) != 0;
 
     if (oddSet) {
-        unsigned selectedGhr = taken ? (globalHistoryReg2[tid] << 1) | 1
-                                     : (globalHistoryReg2[tid] << 1);
+        unsigned selectedGhr = taken ? (globalHistoryRegInclusive[tid] << 1) | 1
+                                     : (globalHistoryRegInclusive[tid] << 1);
         selectedGhr &= historyRegisterMask;
-        globalHistoryReg2[tid] = selectedGhr;
-        stats.updateUsedGhr2++;
+        globalHistoryRegInclusive[tid] = selectedGhr;
+        stats.updateUsedGhrInclusive++;
     }
     else {
-        unsigned selectedGhr = taken ? (globalHistoryReg[tid] << 1) | 1
-                                     : (globalHistoryReg[tid] << 1);
+        unsigned selectedGhr = taken ? (globalHistoryRegExclusive[tid] << 1) | 1
+                                     : (globalHistoryRegExclusive[tid] << 1);
         selectedGhr &= historyRegisterMask;
-        globalHistoryReg[tid] = selectedGhr;
-        stats.updateUsedGhr1++;
+        globalHistoryRegExclusive[tid] = selectedGhr;
+        stats.updateUsedGhrExclusive++;
+
+        selectedGhr = taken ? (globalHistoryRegInclusive[tid] << 1) | 1
+                            : (globalHistoryRegInclusive[tid] << 1);
+        selectedGhr &= historyRegisterMask;
+        globalHistoryRegInclusive[tid] = selectedGhr;
+        stats.updateUsedGhrInclusive++;
     }
 }
 
-GshareReplicatedBP::GshareReplicatedBPStats::GshareReplicatedBPStats(
+GshareReplicatedInclusiveBP::GshareReplicatedInclusiveBPStats::GshareReplicatedInclusiveBPStats(
     statistics::Group *parent)
     : statistics::Group(parent),
-    ADD_STAT(lookupUsedGhr1, statistics::units::Count::get(),
-    "Lookups done on globalHistoryReg"),
-    ADD_STAT(lookupUsedGhr2, statistics::units::Count::get(),
-    "Lookups done on globalHistoryReg2"),
-    ADD_STAT(updateUsedGhr1, statistics::units::Count::get(),
-    "Updates on globalHistoryReg"),
-    ADD_STAT(updateUsedGhr2, statistics::units::Count::get(),
-    "Updates on globalHistoryReg2")
+    ADD_STAT(lookupUsedGhrExclusive, statistics::units::Count::get(),
+    "Lookups done on the exclusive global history"),
+    ADD_STAT(lookupUsedGhrInclusive, statistics::units::Count::get(),
+    "Lookups done on the inclusive global history (the one that is always updated)"),
+    ADD_STAT(updateUsedGhrExclusive, statistics::units::Count::get(),
+    "Updates on the exclusive global history"),
+    ADD_STAT(updateUsedGhrInclusive, statistics::units::Count::get(),
+    "Updates on the inclusive global history (the one that is always updated)")
 {
 }
 
 uint32_t
-GshareReplicatedBP::getIcacheSet(Addr addr) const
+GshareReplicatedInclusiveBP::getIcacheSet(Addr addr) const
 {
     return (addr >> icacheBlockShift);
 }
