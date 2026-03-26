@@ -52,14 +52,15 @@ GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
       globalCtrBits(params.global_counter_bits),
       globalCtrs(globalPredictorSize, SatCounter8(globalCtrBits)),
       icacheBlockShift(params.icache_block_shift),
-      numIcacheSets(params.num_icache_sets)
+      icacheSetsBits(ceilLog2(params.num_icache_sets)),
+      stats(this)
 {
 
     if (!isPowerOf2(globalPredictorSize)) {
         fatal("Invalid global history predictor size.\n");
     }
     historyRegisterMask = mask(globalHistoryBits);
-    icacheSetMask = ceilLog2(numIcacheSets) - 1;
+    icacheSetMask = mask(icacheSetsBits);
     globalHistoryMask = globalPredictorSize - 1;
     takenThreshold = (1ULL << (globalCtrBits - 1)) - 1;
 }
@@ -72,8 +73,12 @@ GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
 void
 GshareReplicatedBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 {
+    uint32_t icache_set = getIcacheSet(pc);
+    bool oddSet = (icache_set & 1U) != 0;
+
     BPHistory *history = new BPHistory;
-    history->globalHistoryReg = globalHistoryReg[tid];
+    history->globalHistoryReg = oddSet ? globalHistoryReg2[tid]
+                                       : globalHistoryReg[tid];
     history->finalPred = true;
     bp_history = static_cast<void *>(history);
 }
@@ -118,8 +123,14 @@ GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
     uint32_t icache_set = getIcacheSet(branchAddr);
     bool oddSet = (icache_set & 1U) != 0;
 
-    unsigned selectedGhr = oddSet ? globalHistoryReg2[tid]
-                                  : globalHistoryReg[tid];
+    unsigned selectedGhr;
+    if (oddSet) {
+        selectedGhr = globalHistoryReg2[tid];
+        stats.lookupUsedGhr2++;
+    } else {
+        selectedGhr = globalHistoryReg[tid];
+        stats.lookupUsedGhr1++;
+    }
 
     unsigned globalHistoryIdx =
         (((branchAddr >> instShiftAmt) ^ selectedGhr) &
@@ -188,13 +199,29 @@ GshareReplicatedBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool take
                                      : (globalHistoryReg2[tid] << 1);
         selectedGhr &= historyRegisterMask;
         globalHistoryReg2[tid] = selectedGhr;
+        stats.updateUsedGhr2++;
     }
     else {
         unsigned selectedGhr = taken ? (globalHistoryReg[tid] << 1) | 1
                                      : (globalHistoryReg[tid] << 1);
         selectedGhr &= historyRegisterMask;
         globalHistoryReg[tid] = selectedGhr;
+        stats.updateUsedGhr1++;
     }
+}
+
+GshareReplicatedBP::GshareReplicatedBPStats::GshareReplicatedBPStats(
+    statistics::Group *parent)
+    : statistics::Group(parent),
+    ADD_STAT(lookupUsedGhr1, statistics::units::Count::get(),
+    "Lookups done on globalHistoryReg"),
+    ADD_STAT(lookupUsedGhr2, statistics::units::Count::get(),
+    "Lookups done on globalHistoryReg2"),
+    ADD_STAT(updateUsedGhr1, statistics::units::Count::get(),
+    "Updates on globalHistoryReg"),
+    ADD_STAT(updateUsedGhr2, statistics::units::Count::get(),
+    "Updates on globalHistoryReg2")
+{
 }
 
 uint32_t

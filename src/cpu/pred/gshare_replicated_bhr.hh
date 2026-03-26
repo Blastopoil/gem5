@@ -37,6 +37,7 @@
 #include "base/sat_counter.hh"
 #include "cpu/pred/conditional.hh"
 #include "params/GshareReplicatedBP.hh"
+#include "base/statistics.hh"
 
 namespace gem5
 {
@@ -90,10 +91,19 @@ class GshareReplicatedBP : public ConditionalPredictor
     unsigned takenThreshold;
 
     unsigned icacheBlockShift;
-    unsigned numIcacheSets;
-    uint32_t icacheSetMask;
+    unsigned icacheSetsBits;
+    unsigned icacheSetMask;
 
     uint32_t getIcacheSet(Addr addr) const;
+
+    struct GshareReplicatedBPStats : public statistics::Group
+    {
+        GshareReplicatedBPStats(statistics::Group *parent);
+        statistics::Scalar lookupUsedGhr1;
+        statistics::Scalar lookupUsedGhr2;
+        statistics::Scalar updateUsedGhr1;
+        statistics::Scalar updateUsedGhr2;
+    } stats;
 };
 
 } // namespace branch_prediction
