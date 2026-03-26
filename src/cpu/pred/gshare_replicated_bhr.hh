@@ -35,9 +35,9 @@
 #define __CPU_PRED_GSHARE_REPLICATED_BHR_HH__
 
 #include "base/sat_counter.hh"
+#include "base/statistics.hh"
 #include "cpu/pred/conditional.hh"
 #include "params/GshareReplicatedBP.hh"
-#include "base/statistics.hh"
 
 namespace gem5
 {
@@ -91,8 +91,6 @@ class GshareReplicatedBP : public ConditionalPredictor
     unsigned takenThreshold;
 
     unsigned icacheBlockShift;
-    unsigned icacheSetsBits;
-    unsigned icacheSetMask;
 
     uint32_t getIcacheSet(Addr addr) const;
 

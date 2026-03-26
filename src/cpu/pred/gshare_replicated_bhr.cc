@@ -51,8 +51,7 @@ GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
       globalPredictorSize(params.global_predictor_size),
       globalCtrBits(params.global_counter_bits),
       globalCtrs(globalPredictorSize, SatCounter8(globalCtrBits)),
-      icacheBlockShift(params.icache_block_shift),
-      icacheSetsBits(ceilLog2(params.num_icache_sets)),
+      icacheBlockShift(floorLog2(params.system->cacheLineSize())),
       stats(this)
 {
 
@@ -60,7 +59,6 @@ GshareReplicatedBP::GshareReplicatedBP(const GshareReplicatedBPParams &params)
         fatal("Invalid global history predictor size.\n");
     }
     historyRegisterMask = mask(globalHistoryBits);
-    icacheSetMask = mask(icacheSetsBits);
     globalHistoryMask = globalPredictorSize - 1;
     takenThreshold = (1ULL << (globalCtrBits - 1)) - 1;
 }
@@ -227,7 +225,7 @@ GshareReplicatedBP::GshareReplicatedBPStats::GshareReplicatedBPStats(
 uint32_t
 GshareReplicatedBP::getIcacheSet(Addr addr) const
 {
-    return (addr >> icacheBlockShift) & icacheSetMask;
+    return (addr >> icacheBlockShift);
 }
 
 } // namespace branch_prediction
