@@ -76,7 +76,7 @@ class GshareReplicatedBP : public ConditionalPredictor
     {
         unsigned globalHistoryReg;
         bool finalPred;
-        bool oddSet; // To decide what history reg to use in a squash
+        bool oddDir; // To decide what history reg to use in a squash
     };
 
     std::vector<unsigned> globalHistoryReg;
@@ -91,9 +91,9 @@ class GshareReplicatedBP : public ConditionalPredictor
     std::vector<SatCounter8> globalCtrs;
     unsigned takenThreshold;
 
-    unsigned icacheBlockShift;
+    unsigned instructionShift;
 
-    uint32_t getIcacheSet(Addr addr) const;
+    uint32_t getInstructionDir(Addr addr) const;
 
     struct GshareReplicatedBPStats : public statistics::Group
     {

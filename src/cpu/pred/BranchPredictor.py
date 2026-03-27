@@ -1179,7 +1179,7 @@ class GshareReplicatedBP(ConditionalPredictor):
     global_predictor_size = Param.Unsigned(512, "Size of global predictor")
     global_counter_bits = Param.Unsigned(2, "Bits per counter")
 
-    system = Param.System(Parent.any, "System object to facilitate obtaining the icache line size")
+    instruction_shift = Param.Unsigned(4, "Shift for branch instruction direction")
 
 class GshareReplicatedInclusiveBP(ConditionalPredictor):
     type = "GshareReplicatedInclusiveBP"
@@ -1189,7 +1189,7 @@ class GshareReplicatedInclusiveBP(ConditionalPredictor):
     global_predictor_size = Param.Unsigned(512, "Size of global predictor")
     global_counter_bits = Param.Unsigned(2, "Bits per counter")
 
-    system = Param.System(Parent.any, "System object to facilitate obtaining the icache line size")
+    instruction_shift = Param.Unsigned(4, "Shift for branch instruction direction")
 
 class AlwaysBooleanBP(ConditionalPredictor):
     type = "AlwaysBooleanBP"

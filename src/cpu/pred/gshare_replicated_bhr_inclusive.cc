@@ -51,7 +51,7 @@ GshareReplicatedInclusiveBP::GshareReplicatedInclusiveBP(const GshareReplicatedI
       globalPredictorSize(params.global_predictor_size),
       globalCtrBits(params.global_counter_bits),
       globalCtrs(globalPredictorSize, SatCounter8(globalCtrBits)),
-      icacheBlockShift(floorLog2(params.system->cacheLineSize())),
+      instructionShift(params.instruction_shift),
       stats(this)
 {
 
@@ -71,11 +71,11 @@ GshareReplicatedInclusiveBP::GshareReplicatedInclusiveBP(const GshareReplicatedI
 void
 GshareReplicatedInclusiveBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 {
-    uint32_t icache_set = getIcacheSet(pc);
-    bool oddSet = (icache_set & 1U) != 0;
+    uint32_t icache_set = getInstructionDir(pc);
+    bool oddDir = (icache_set & 1U) != 0;
 
     BPHistory *history = new BPHistory;
-    history->globalHistoryReg = oddSet ? globalHistoryRegInclusive[tid]
+    history->globalHistoryReg = oddDir ? globalHistoryRegInclusive[tid]
                                        : globalHistoryRegExclusive[tid];
     history->finalPred = true;
     bp_history = static_cast<void *>(history);
@@ -104,7 +104,7 @@ void
 GshareReplicatedInclusiveBP::squash(ThreadID tid, void *&bp_history)
 {
     BPHistory *history = static_cast<BPHistory *>(bp_history);
-    if (history->oddSet)
+    if (history->oddDir)
         globalHistoryRegInclusive[tid] = history->globalHistoryReg;
     else {
         globalHistoryRegExclusive[tid] = history->globalHistoryReg;
@@ -123,11 +123,11 @@ GshareReplicatedInclusiveBP::squash(ThreadID tid, void *&bp_history)
 bool
 GshareReplicatedInclusiveBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
 {
-    uint32_t icache_set = getIcacheSet(branchAddr);
-    bool oddSet = (icache_set & 1U) != 0;
+    uint32_t icache_set = getInstructionDir(branchAddr);
+    bool oddDir = (icache_set & 1U) != 0;
 
     unsigned selectedGhr;
-    if (oddSet) {
+    if (oddDir) {
         selectedGhr = globalHistoryRegInclusive[tid];
         stats.lookupUsedGhrInclusive++;
     } else {
@@ -160,8 +160,8 @@ GshareReplicatedInclusiveBP::update(ThreadID tid, Addr branchAddr, bool taken,
                  void *&bp_history, bool squashed,
                  const StaticInstPtr &inst, Addr target)
 {
-    uint32_t icache_set = getIcacheSet(branchAddr);
-    bool oddSet = (icache_set & 1U) != 0;
+    uint32_t icache_set = getInstructionDir(branchAddr);
+    bool oddDir = (icache_set & 1U) != 0;
 
     assert(bp_history);
 
@@ -170,7 +170,7 @@ GshareReplicatedInclusiveBP::update(ThreadID tid, Addr branchAddr, bool taken,
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     if (squashed) {
-        if (oddSet) {
+        if (oddDir) {
             globalHistoryRegInclusive[tid] = (history->globalHistoryReg << 1) | taken;
         }
         else {
@@ -198,10 +198,10 @@ GshareReplicatedInclusiveBP::update(ThreadID tid, Addr branchAddr, bool taken,
 void
 GshareReplicatedInclusiveBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool taken)
 {
-    uint32_t icache_set = getIcacheSet(branchAddr);
-    bool oddSet = (icache_set & 1U) != 0;
+    uint32_t icache_set = getInstructionDir(branchAddr);
+    bool oddDir = (icache_set & 1U) != 0;
 
-    if (oddSet) {
+    if (oddDir) {
         unsigned selectedGhr = taken ? (globalHistoryRegInclusive[tid] << 1) | 1
                                      : (globalHistoryRegInclusive[tid] << 1);
         selectedGhr &= historyRegisterMask;
@@ -238,9 +238,9 @@ GshareReplicatedInclusiveBP::GshareReplicatedInclusiveBPStats::GshareReplicatedI
 }
 
 uint32_t
-GshareReplicatedInclusiveBP::getIcacheSet(Addr addr) const
+GshareReplicatedInclusiveBP::getInstructionDir(Addr addr) const
 {
-    return (addr >> icacheBlockShift);
+    return (addr >> instructionShift);
 }
 
 } // namespace branch_prediction
