@@ -33,8 +33,11 @@
 
 #include "cpu/pred/gshare_replicated_bhr.hh"
 
+#include <bitset>
 #include "base/bitfield.hh"
 #include "base/intmath.hh"
+#include "base/trace.hh"
+#include "debug/GshareReplicatedBP.hh"
 #include "mem/cache/base.hh"
 
 namespace gem5
@@ -135,7 +138,8 @@ GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
     }
 
     unsigned globalHistoryIdx =
-        (((branchAddr >> instShiftAmt) ^ selectedGhr) &
+        //(((branchAddr >> instShiftAmt) ^ selectedGhr) & // Comment this line for testing with custom binaries
+        (selectedGhr &
          globalHistoryMask);
 
     assert(globalHistoryIdx < globalPredictorSize);
@@ -146,6 +150,18 @@ GshareReplicatedBP::lookup(ThreadID tid, Addr branchAddr, void *&bp_history)
     history->globalHistoryReg = selectedGhr;
     history->finalPred = final_prediction;
     bp_history = static_cast<void *>(history);
+    
+    std::string ghr_bin =
+    std::bitset<64>(selectedGhr).to_string().substr(64 - globalHistoryBits);
+    if (oddDir) {
+        DPRINTF(GshareReplicatedBP,
+            "lookup: branchAddr=%#lx used GHR2=%s\n",
+            branchAddr, ghr_bin);
+    } else {
+        DPRINTF(GshareReplicatedBP,
+            "lookup: branchAddr=%#lx used GHR1=%s\n",
+            branchAddr, ghr_bin);
+    }
 
     return final_prediction;
 }
@@ -158,9 +174,6 @@ GshareReplicatedBP::update(ThreadID tid, Addr branchAddr, bool taken,
                  void *&bp_history, bool squashed,
                  const StaticInstPtr &inst, Addr target)
 {
-    uint32_t instruction_dir = getInstructionDir(branchAddr);
-    bool oddDir = (instruction_dir & 1U) != 0;
-
     assert(bp_history);
 
     BPHistory *history = static_cast<BPHistory *>(bp_history);
@@ -168,18 +181,41 @@ GshareReplicatedBP::update(ThreadID tid, Addr branchAddr, bool taken,
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     if (squashed) {
-        if (oddDir)
+        uint32_t instruction_dir = getInstructionDir(branchAddr);
+        bool oddDir = (instruction_dir & 1U) != 0;
+
+        std::string ghr_bin =
+        std::bitset<64>(history->globalHistoryReg).to_string().substr(64 - globalHistoryBits);
+        if (oddDir) {
             globalHistoryReg2[tid] = (history->globalHistoryReg << 1) | taken;
-        else
+            std::string restored_ghr =
+            std::bitset<64>(globalHistoryReg2[tid]).to_string().substr(64 - globalHistoryBits);
+            DPRINTF(GshareReplicatedBP,
+                "squash: branchAddr=%#lx GHR2=%s becomes %s\n",
+                branchAddr, ghr_bin, restored_ghr);
+        } else {
             globalHistoryReg[tid] = (history->globalHistoryReg << 1) | taken;
+            std::string restored_ghr =
+            std::bitset<64>(globalHistoryReg[tid]).to_string().substr(64 - globalHistoryBits);
+            DPRINTF(GshareReplicatedBP,
+                "squash: branchAddr=%#lx GHR1=%s becomes %s\n",
+                branchAddr, ghr_bin, restored_ghr);
+        }
         return;
     }
 
     unsigned globalHistoryIdx =
-        (((branchAddr >> instShiftAmt) ^ history->globalHistoryReg) &
+         //(((branchAddr >> instShiftAmt) ^ selectedGhr) & // Comment this line for testing with custom binaries
+        (history->globalHistoryReg &
          globalHistoryMask);
 
     assert(globalHistoryIdx < globalPredictorSize);
+
+    std::string ghr_bin =
+    std::bitset<64>(history->globalHistoryReg).to_string().substr(64 - globalHistoryBits);
+    DPRINTF(GshareReplicatedBP,
+        "Actual update (correct prediction): branchAddr=%#lx usedGHR=%s\n",
+        branchAddr, ghr_bin);
 
     if (taken) {
         globalCtrs[globalHistoryIdx]++;
@@ -202,6 +238,12 @@ GshareReplicatedBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool take
         selectedGhr &= historyRegisterMask;
         globalHistoryReg2[tid] = selectedGhr;
         stats.updateUsedGhr2++;
+        
+        std::string ghr_bin =
+        std::bitset<64>(globalHistoryReg2[tid]).to_string().substr(64 - globalHistoryBits);
+        DPRINTF(GshareReplicatedBP,
+            "Speculative update: branchAddr=%#lx new GHR2=%s\n",
+            branchAddr, ghr_bin);
     }
     else {
         unsigned selectedGhr = taken ? (globalHistoryReg[tid] << 1) | 1
@@ -209,6 +251,12 @@ GshareReplicatedBP::updateGlobalHistReg(ThreadID tid, Addr branchAddr, bool take
         selectedGhr &= historyRegisterMask;
         globalHistoryReg[tid] = selectedGhr;
         stats.updateUsedGhr1++;
+        
+        std::string ghr_bin =
+        std::bitset<64>(globalHistoryReg[tid]).to_string().substr(64 - globalHistoryBits);
+        DPRINTF(GshareReplicatedBP,
+            "Speculative update: branchAddr=%#lx new GHR1=%s\n",
+            branchAddr, ghr_bin);
     }
 }
 

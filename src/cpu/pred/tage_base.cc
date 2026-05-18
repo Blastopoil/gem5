@@ -215,9 +215,9 @@ TAGEBase::gindex(ThreadID tid, Addr pc, int bank) const
                                                     histLengths[bank];
     const unsigned int shiftedPc = pc >> instShiftAmt;
     index =
-        shiftedPc ^
-        (shiftedPc >> ((int) abs(logTagTableSizes[bank] - bank) + 1)) ^
-        threadHistory[tid].computeIndices[bank].comp ^
+        shiftedPc ^ // The PC
+        (shiftedPc >> ((int) abs(logTagTableSizes[bank] - bank) + 1)) ^ // The higher part of the PC shifted in relation to the TAGE table being consulted
+        threadHistory[tid].computeIndices[bank].comp ^ // The Global History in a 'compressed' form and adjusted to the TAGE table size
         F(threadHistory[tid].pathHist, hlen, bank);
 
     return (index & ((1ULL << (logTagTableSizes[bank])) - 1));
@@ -340,6 +340,7 @@ TAGEBase::updateGHist(ThreadID tid, uint64_t bv, uint8_t n)
 
         for (int i = 1; i <= nHistoryTables; i++) {
             tHist.computeIndices[i].update(gh_ptr);
+            // TODO: comprobar si aqui tendria que hacer el restore de la historia global comprimida duplicada
             tHist.computeTags[0][i].update(gh_ptr);
             tHist.computeTags[1][i].update(gh_ptr);
         }
@@ -721,6 +722,7 @@ TAGEBase::restoreHistState(ThreadID tid, BranchInfo* bi)
         // First revert the folded history
         for (int i = 1; i <= nHistoryTables; i++) {
             tHist.computeIndices[i].restore(gh_ptr);
+            // TODO: comprobar si aqui tendria que hacer el restore de la historia global comprimida duplicada
             tHist.computeTags[0][i].restore(gh_ptr);
             tHist.computeTags[1][i].restore(gh_ptr);
         }

@@ -101,5 +101,6 @@ DebugFlag('Tage')
 DebugFlag('LTage')
 DebugFlag('TageSCL')
 DebugFlag('RandomBP')
+DebugFlag('GshareReplicatedBP')
 DebugFlag('AlwaysBooleanBP')
 

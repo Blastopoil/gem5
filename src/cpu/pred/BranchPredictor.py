@@ -1176,7 +1176,7 @@ class GshareReplicatedBP(ConditionalPredictor):
     cxx_class = "gem5::branch_prediction::GshareReplicatedBP"
     cxx_header = "cpu/pred/gshare_replicated_bhr.hh"
 
-    global_predictor_size = Param.Unsigned(512, "Size of global predictor")
+    global_predictor_size = Param.Unsigned(512, "Size of global predictor") # 9 bits of history
     global_counter_bits = Param.Unsigned(2, "Bits per counter")
 
     instruction_shift = Param.Unsigned(4, "Shift for branch instruction direction")
