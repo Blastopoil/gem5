@@ -364,7 +364,12 @@ BPredUnit::commitBranch(ThreadID tid, PredictorHistory* &hist)
             stats.mispredictDueToBTBMiss[tid][hist->type]++;
         } else {
             stats.mispredictDueToPredictor[tid][hist->type]++;
+        } 
+        
+        if (hist->condPred != hist->actuallyTaken) {
+            stats.myMispredictDueToCondMiss[tid][hist->type]++;
         }
+        
         ++stats.condIncorrect;
         ppMisses->notify(1);
     }
@@ -672,6 +677,9 @@ BPredUnit::BPredUnitStats::BPredUnitStats(BPredUnit *bp)
       ADD_STAT(mispredictDueToBTBMiss, statistics::units::Count::get(),
               "Number of committed branches that were mispredicted because of "
               "a BTB miss."),
+      ADD_STAT(myMispredictDueToCondMiss, statistics::units::Count::get(),
+              "Number of committed branches that were mispredicted because of "
+              "the conditional predictor (Custom stat of mine)."),
       ADD_STAT(targetProvider, statistics::units::Count::get(),
               "The component providing the target for taken branches"),
       ADD_STAT(targetWrong, statistics::units::Count::get(),
@@ -747,6 +755,11 @@ BPredUnit::BPredUnitStats::BPredUnitStats(BPredUnit *bp)
         .init(bp->numThreads, enums::Num_BranchType)
         .flags(total | pdf);
     mispredictDueToBTBMiss.ysubnames(enums::BranchTypeStrings);
+
+    myMispredictDueToCondMiss
+        .init(bp->numThreads, enums::Num_BranchType)
+        .flags(total | pdf);
+    myMispredictDueToCondMiss.ysubnames(enums::BranchTypeStrings);
 
     targetProvider
         .init(bp->numThreads, enums::Num_TargetProvider)

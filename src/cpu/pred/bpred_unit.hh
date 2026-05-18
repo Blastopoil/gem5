@@ -454,6 +454,7 @@ class BPredUnit : public SimObject
         statistics::Vector2d mispredicted;
         statistics::Vector2d mispredictDueToPredictor;
         statistics::Vector2d mispredictDueToBTBMiss;
+        statistics::Vector2d myMispredictDueToCondMiss;
 
         /** Target prediction per branch type */
         statistics::Vector2d targetProvider;
