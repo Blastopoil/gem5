@@ -175,6 +175,14 @@ IEW::IEWStats::IEWStats(CPU *cpu)
                "Number of times the LSQ has become full, causing a stall"),
       ADD_STAT(memOrderViolationEvents, statistics::units::Count::get(),
                "Number of memory order violations"),
+      ADD_STAT(myTotalBranches2, statistics::units::Count::get(),
+               "My second number of total branches that were executed"),
+      ADD_STAT(myTotalBranches1, statistics::units::Count::get(),
+               "My first number of total branches that were executed"),
+      ADD_STAT(myConditionalBranches2, statistics::units::Count::get(),
+               "My second number of conditional branches that were executed"),
+      ADD_STAT(myConditionalBranches1, statistics::units::Count::get(),
+               "My first number of conditional branches that were executed"),
       ADD_STAT(predictedTakenIncorrect, statistics::units::Count::get(),
                "Number of branches that were predicted taken incorrectly"),
       ADD_STAT(predictedNotTakenIncorrect, statistics::units::Count::get(),
@@ -1285,6 +1293,12 @@ IEW::executeInsts()
         // instruction first, so the branch resolution order will be correct.
         ThreadID tid = inst->threadNumber;
 
+        if (inst->isControl())
+            iewStats.myTotalBranches2++;
+        
+        if (inst->isCondCtrl())
+            iewStats.myConditionalBranches2++;
+
         if (!fetchRedirect[tid] ||
             !toCommit->squash[tid] ||
             toCommit->squashedSeqNum[tid] > inst->seqNum) {
@@ -1578,7 +1592,11 @@ IEW::updateExeInstStats(const DynInstPtr& inst)
     //
     if (inst->isControl()) {
         cpu->executeStats[tid]->numBranches++;
+        iewStats.myTotalBranches1++;
     }
+        
+    if (inst->isCondCtrl())
+        iewStats.myConditionalBranches1++;
 
     //
     //  Memory operations

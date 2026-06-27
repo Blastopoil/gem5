@@ -444,6 +444,11 @@ class IEW
         statistics::Scalar lsqFullEvents;
         /** Stat for total number of memory ordering violation events. */
         statistics::Scalar memOrderViolationEvents;
+        /** My stats for speculative branches studies. */
+        statistics::Scalar myTotalBranches2;
+        statistics::Scalar myTotalBranches1;
+        statistics::Scalar myConditionalBranches2;
+        statistics::Scalar myConditionalBranches1;
         /** Stat for total number of incorrect predicted taken branches. */
         statistics::Scalar predictedTakenIncorrect;
         /** Stat for total number of incorrect predicted not taken branches. */
